@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Femminine Tracker - Pantau Siklus & Kesehatan Reproduksi</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Inter & Quicksand -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Chart.js untuk Wawasan Analisis Bulanan -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Quicksand', 'sans-serif'],
+                    },
+                    colors: {
+                        roseSoft: '#FFF5F7',
+                        roseLight: '#FFE4E9',
+                        dustyPink: '#E57399',
+                        dustyPinkDark: '#C8527B',
+                        lavenderSoft: '#F3E8FF',
+                        lavenderAccent: '#9D65C9',
+                        slateText: '#332933',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-roseSoft text-slateText min-h-screen flex flex-col antialiased selection:bg-roseLight selection:text-dustyPinkDark">
+
+    <!-- Notifikasi Toast Custom (Pengganti alert) -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Modal Konfirmasi Hapus Custom (Pengganti confirm) -->
+    <div id="delete-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-xl border border-roseLight transform transition-all">
+            <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-4 mx-auto">
+                <i class="ph ph-trash text-2xl"></i>
+            </div>
+            <h3 class="font-display text-lg font-bold text-center text-slate-800 mb-2">Hapus Riwayat Siklus?</h3>
+            <p class="text-sm text-slate-500 text-center mb-6">Data siklus dan gejala yang dipilih akan dihapus secara permanen dari perangkat ini.</p>
+            <div class="flex gap-3">
+                <button id="cancel-delete-btn" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition">Batal</button>
+                <button id="confirm-delete-btn" class="flex-1 py-2.5 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-medium text-sm shadow-md shadow-rose-200 transition">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-roseLight sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-dustyPink to-lavenderAccent flex items-center justify-center text-white shadow-md shadow-pink-200">
+                    <i class="ph-fill ph-flower-lotus text-2xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-display font-bold text-xl text-slate-800 tracking-tight">Femminine Tracker</h1>
+                        <span class="hidden sm:inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-lavenderSoft text-lavenderAccent">Kesehatan</span>
+                    </div>
+                    <p class="text-xs text-slate-500">Asisten pengingat siklus & kesehatan reproduksi</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="loadDemoData()" class="text-xs font-medium px-3 py-2 rounded-xl bg-roseLight/70 hover:bg-roseLight text-dustyPinkDark transition flex items-center gap-1.5" title="Isi contoh data 4 bulan terakhir">
+                    <i class="ph ph-sparkle text-base"></i>
+                    <span class="hidden sm:inline">Contoh Data</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+
+        <!-- Banner Pengingat H-1 & Gejala Harian (Dinamis) -->
+        <section id="reminder-banner-section" class="space-y-3">
+            <!-- Banner H-1 akan dirender di sini jika memenuhi syarat -->
+            <div id="h1-alert-box" class="hidden bg-gradient-to-r from-amber-50 to-rose-50 border-l-4 border-dustyPink rounded-2xl p-4 sm:p-5 shadow-sm flex items-start gap-4">
+                <div class="w-10 h-10 rounded-xl bg-dustyPink text-white flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
+                    <i class="ph-fill ph-bell-ringing text-xl"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                        <h3 class="font-display font-bold text-slate-800 text-base">Pengingat Jadwal Menstruasi (H-1)</h3>
+                        <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-dustyPink text-white">Besok / Segera</span>
+                    </div>
+                    <p id="h1-alert-text" class="text-sm text-slate-600 mt-1">
+                        Estimasi menstruasi Anda diperkirakan mulai besok. Siapkan pembalut, minum air hangat, dan jaga pola istirahat ya!
+                    </p>
+                </div>
+            </div>
+
+            <!-- Kartu Status Estimasi Utama & Pengingat Catat Gejala -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Kartu Estimasi Siklus Berikutnya -->
+                <div class="lg:col-span-2 bg-gradient-to-br from-dustyPink via-[#DF658E] to-lavenderAccent rounded-3xl p-6 text-white shadow-lg shadow-pink-200/60 relative overflow-hidden">
+                    <div class="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
+                    <div class="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                        <div class="space-y-2">
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-xs font-medium">
+                                <i class="ph-fill ph-calendar-heart"></i>
+                                <span>Estimasi Siklus Berikutnya</span>
+                            </div>
+                            <h2 id="next-period-countdown" class="font-display text-3xl sm:text-4xl font-bold tracking-tight">
+                                Belum Ada Data
+                            </h2>
+                            <p id="next-period-date" class="text-pink-100 text-sm">
+                                Catat tanggal menstruasi terakhir Anda untuk menghitung estimasi otomatis.
+                            </p>
+                        </div>
+
+                        <div class="bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/20 shrink-0 min-w-[190px]">
+                            <div class="flex items-center gap-2 text-pink-100 text-xs mb-1">
+                                <i class="ph ph-bell-simple-ringing text-base"></i>
+                                <span>Pengingat H-1 Otomatis</span>
+                            </div>
+                            <p id="h1-reminder-date" class="font-display font-bold text-base text-white">-</p>
+                            <div class="mt-2 pt-2 border-t border-white/15 flex items-center justify-between text-xs text-pink-100">
+                                <span>Masa Subur Est.:</span>
+                                <span id="fertile-window-est" class="font-semibold text-white">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kartu Pengingat Waktu Mencatat Gejala -->
+                <div class="bg-white rounded-3xl p-6 border border-roseLight shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="w-10 h-10 rounded-2xl bg-lavenderSoft text-lavenderAccent flex items-center justify-center">
+                                <i class="ph-fill ph-heartbeat text-xl"></i>
+                            </span>
+                            <span id="daily-symptom-badge" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                                Pengingat Harian
+                            </span>
+                        </div>
+                        <h3 class="font-display font-bold text-slate-800 text-base">Waktu Mencatat Gejala</h3>
+                        <p id="symptom-reminder-desc" class="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Pantau perubahan tubuh seperti kram perut, suasana hati (mood), atau sakit kepala agar analisis bulanan lebih akurat.
+                        </p>
+                    </div>
+                    <a href="#form-pencatatan" class="mt-4 w-full py-2.5 px-4 rounded-xl bg-lavenderSoft hover:bg-purple-200/70 text-lavenderAccent font-semibold text-xs text-center transition flex items-center justify-center gap-1.5">
+                        <i class="ph-bold ph-plus-circle text-base"></i>
+                        <span>Catat Siklus & Gejala Sekarang</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Grid Utama: Form Pencatatan & Wawasan Analisis Bulanan -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Kolom Kiri (5 cols): Form Pencatatan Siklus Akurat -->
+            <section id="form-pencatatan" class="lg:col-span-5 bg-white rounded-3xl p-6 border border-roseLight shadow-sm h-fit">
+                <div class="flex items-center gap-2.5 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-roseLight text-dustyPinkDark flex items-center justify-center">
+                        <i class="ph-fill ph-note-pencil text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-display font-bold text-lg text-slate-800">Catat Siklus & Gejala</h2>
+                        <p class="text-xs text-slate-500">Input tanggal menstruasi & kondisi fisik harian</p>
+                    </div>
+                </div>
+
+                <form id="cycle-form" class="space-y-4">
+                    <!-- Tanggal Mulai & Berakhir -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="start-date" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Tanggal Mulai Haid <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="date" id="start-date" required
+                                class="w-full px-3.5 py-2.5 rounded-xl border border-rose-200 bg-roseSoft/40 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-dustyPink focus:border-transparent transition">
+                        </div>
+                        <div>
+                            <label for="end-date" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Tanggal Berakhir <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="date" id="end-date" required
+                                class="w-full px-3.5 py-2.5 rounded-xl border border-rose-200 bg-roseSoft/40 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-dustyPink focus:border-transparent transition">
+                        </div>
+                    </div>
+
+                    <!-- Preview Durasi Otomatis -->
+                    <div id="duration-preview" class="hidden px-3.5 py-2 rounded-xl bg-roseSoft border border-roseLight text-xs text-dustyPinkDark flex items-center justify-between">
+                        <span>Durasi menstruasi tercatat:</span>
+                        <span id="duration-preview-days" class="font-bold">0 Hari</span>
+                    </div>
+
+                    <!-- Pilihan Gejala Harian (Chips) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-2">
+                            Gejala yang Dirasakan (Bisa pilih lebih dari satu)
+                        </label>
+                        <div class="flex flex-wrap gap-2" id="symptom-chips">
+                            <label class="cursor-pointer">
+                                <input type="checkbox" value="Kram Perut" class="peer sr-only symptom-checkbox">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-rose-200 bg-white text-slate-600 peer-checked:bg-dustyPink peer-checked:text-white peer-checked:border-dustyPink transition select-none">
+                                    😣 Kram Perut
+                                </span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="checkbox" value="Perubahan Mood" class="peer sr-only symptom-checkbox">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-rose-200 bg-white text-slate-600 peer-checked:bg-dustyPink peer-checked:text-white peer-checked:border-dustyPink transition select-none">
+                                    🎭 Perubahan Mood
+                                </span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="checkbox" value="Nyeri Kepala" class="peer sr-only symptom-checkbox">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-rose-200 bg-white text-slate-600 peer-checked:bg-dustyPink peer-checked:text-white peer-checked:border-dustyPink transition select-none">
+                                    🤕 Nyeri Kepala
+                                </span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="checkbox" value="Mudah Lelah" class="peer sr-only symptom-checkbox">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-rose-200 bg-white text-slate-600 peer-checked:bg-dustyPink peer-checked:text-white peer-checked:border-dustyPink transition select-none">
+                                    🥱 Mudah Lelah
+                                </span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="checkbox" value="Nyeri Punggung" class="peer sr-only symptom-checkbox">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-rose-200 bg-white text-slate-600 peer-checked:bg-dustyPink peer-checked:text-white peer-checked:border-dustyPink transition select-none">
+                                    💆‍♀️ Nyeri Punggung
+                                </span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="checkbox" value="Nafsu Makan Naik" class="peer sr-only symptom-checkbox">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-rose-200 bg-white text-slate-600 peer-checked:bg-dustyPink peer-checked:text-white peer-checked:border-dustyPink transition select-none">
+                                    🍫 Nafsu Makan Naik
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Catatan Tambahan -->
+                    <div>
+                        <label for="notes" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                            Catatan Tambahan (Opsional)
+                        </label>
+                        <textarea id="notes" rows="2" placeholder="Contoh: Aliran deras di hari ke-2, minum teh chamomile..."
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-rose-200 bg-roseSoft/40 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-dustyPink focus:border-transparent transition"></textarea>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit"
+                        class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-dustyPink to-dustyPinkDark hover:opacity-95 text-white font-semibold text-sm shadow-md shadow-pink-200 transition flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-check-circle text-lg"></i>
+                        <span>Simpan Catatan Siklus</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Kolom Kanan (7 cols): Wawasan Analisis Bulanan -->
+            <section class="lg:col-span-7 bg-white rounded-3xl p-6 border border-roseLight shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-9 h-9 rounded-xl bg-lavenderSoft text-lavenderAccent flex items-center justify-center">
+                                <i class="ph-fill ph-chart-bar text-xl"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-display font-bold text-lg text-slate-800">Wawasan Analisis Bulanan</h2>
+                                <p class="text-xs text-slate-500">Laporan visual durasi haid & panjang siklus per bulan</p>
+                            </div>
+                        </div>
+                        <span id="cycle-health-status" class="self-start sm:self-auto text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Siklus Normal (21-35 Hari)
+                        </span>
+                    </div>
+
+                    <!-- Kartu Ringkasan Statistik -->
+                    <div class="grid grid-cols-3 gap-3 mb-6">
+                        <div class="bg-roseSoft/70 rounded-2xl p-3.5 border border-roseLight">
+                            <p class="text-[11px] font-medium text-slate-500">Rata-rata Siklus</p>
+                            <p id="stat-avg-cycle" class="font-display font-bold text-xl sm:text-2xl text-dustyPinkDark mt-0.5">28 <span class="text-xs font-normal text-slate-500">Hari</span></p>
+                        </div>
+                        <div class="bg-lavenderSoft/60 rounded-2xl p-3.5 border border-purple-100">
+                            <p class="text-[11px] font-medium text-slate-500">Rata-rata Durasi</p>
+                            <p id="stat-avg-duration" class="font-display font-bold text-xl sm:text-2xl text-lavenderAccent mt-0.5">5 <span class="text-xs font-normal text-slate-500">Hari</span></p>
+                        </div>
+                        <div class="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-100">
+                            <p class="text-[11px] font-medium text-slate-500">Gejala Tersering</p>
+                            <p id="stat-top-symptom" class="font-display font-bold text-sm sm:text-base text-amber-800 mt-1.5 truncate">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Container Grafik Chart.js -->
+                    <div class="relative w-full h-64 bg-slate-50/60 rounded-2xl p-3 border border-slate-100">
+                        <canvas id="monthlyCycleChart"></canvas>
+                        <div id="empty-chart-overlay" class="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-white/80 rounded-2xl">
+                            <i class="ph ph-chart-line-up text-3xl text-dustyPink mb-2"></i>
+                            <p class="text-sm font-semibold text-slate-700">Belum Ada Grafik Bulanan</p>
+                            <p class="text-xs text-slate-500 max-w-xs mt-1">Tambahkan minimal 1 catatan siklus untuk melihat laporan visual pergantian bulan.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Insight Kesehatan Singkat -->
+                <div class="mt-4 pt-4 border-t border-roseLight flex items-start gap-2.5 text-xs text-slate-600">
+                    <i class="ph-fill ph-info text-lavenderAccent text-base shrink-0 mt-0.5"></i>
+                    <p id="monthly-insight-text">
+                        Siklus menstruasi normal umumnya berlangsung setiap 21 hingga 35 hari dengan durasi haid 3 sampai 7 hari. Catat rutin setiap bulan untuk mendeteksi pola kesehatan Anda.
+                    </p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Bagian Bawah: Riwayat Siklus -->
+        <section class="bg-white rounded-3xl p-6 border border-roseLight shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-roseLight text-dustyPinkDark flex items-center justify-center">
+                        <i class="ph-fill ph-clock-counter-clockwise text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-display font-bold text-lg text-slate-800">Riwayat Pencatatan Siklus</h2>
+                        <p class="text-xs text-slate-500">Tersimpan otomatis secara lokal di perangkat Anda</p>
+                    </div>
+                </div>
+                <span id="history-count-badge" class="self-start sm:self-auto text-xs font-semibold px-3 py-1 rounded-full bg-roseSoft text-dustyPinkDark border border-roseLight">
+                    0 Catatan
+                </span>
+            </div>
+
+            <!-- Tabel Responsif -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-roseLight text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            <th class="py-3 px-3">Bulan / Periode</th>
+                            <th class="py-3 px-3">Tanggal Mulai - Selesai</th>
+                            <th class="py-3 px-3">Durasi Haid</th>
+                            <th class="py-3 px-3">Jarak Siklus</th>
+                            <th class="py-3 px-3">Gejala & Catatan</th>
+                            <th class="py-3 px-3 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="divide-y divide-rose-100/70 text-sm">
+                        <!-- Baris riwayat akan diisi via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- State Kosong Riwayat -->
+            <div id="empty-history-state" class="py-10 text-center">
+                <div class="w-14 h-14 rounded-full bg-roseSoft text-dustyPink flex items-center justify-center mx-auto mb-3">
+                    <i class="ph ph-calendar-blank text-2xl"></i>
+                </div>
+                <p class="text-sm font-semibold text-slate-700">Belum ada riwayat siklus tercatat</p>
+                <p class="text-xs text-slate-500 mt-1">Gunakan formulir di atas untuk mulai mencatat jadwal menstruasi Anda.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-roseLight py-5 mt-8">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+            <p class="font-medium text-slate-600">Femminine Tracker &copy; 2026 &bull; Kategori: Kesehatan Reproduksi</p>
+            <p>Catatan: Estimasi bersifat prediktif. Konsultasikan ke dokter bila terjadi keluhan medis.</p>
+        </div>
+    </footer>
+
+    <!-- Script Logika Aplikasi -->
+    <script>
+        // Kunci penyimpanan localStorage
+        const STORAGE_KEY = 'femminine_tracker_cycles_v1';
+        let cyclesData = [];
+        let cycleChartInstance = null;
+        let pendingDeleteId = null;
+
+        // Nama bulan dalam Bahasa Indonesia
+        const BULAN_ID = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const BULAN_SHORT_ID = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+            'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+        ];
+
+        // Inisialisasi saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCyclesFromStorage();
+            setupFormListeners();
+            setupModalListeners();
+            renderAll();
+        });
+
+        // Muat data dari localStorage
+        function loadCyclesFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                cyclesData = raw ? JSON.parse(raw) : [];
+                // Urutkan berdasarkan tanggal mulai terbaru ke terlama untuk tampilan,
+                // nanti untuk perhitungan diurutkan kronologis
+                sortCyclesDescending();
+            } catch (err) {
+                console.error('Gagal memuat data:', err);
+                cyclesData = [];
+            }
+        }
+
+        // Simpan data ke localStorage
+        function saveCyclesToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(cyclesData));
+            } catch (err) {
+                showToast('Gagal menyimpan data ke browser.', 'error');
+            }
+        }
+
+        function sortCyclesDescending() {
+            cyclesData.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+        }
+
+        // Setup event listener pada form input
+        function setupFormListeners() {
+            const form = document.getElementById('cycle-form');
+            const startDateInput = document.getElementById('start-date');
+            const endDateInput = document.getElementById('end-date');
+
+            // Update preview durasi secara real-time saat tanggal dipilih
+            const updateDurationPreview = () => {
+                const startVal = startDateInput.value;
+                const endVal = endDateInput.value;
+                const previewBox = document.getElementById('duration-preview');
+                const previewText = document.getElementById('duration-preview-days');
+
+                if (startVal && endVal) {
+                    const diffDays = calculateInclusiveDays(startVal, endVal);
+                    if (diffDays >= 1) {
+                        previewBox.classList.remove('hidden');
+                        previewText.textContent = `${diffDays} Hari`;
+                    } else {
+                        previewBox.classList.add('hidden');
+                    }
+                } else {
+                    previewBox.classList.add('hidden');
+                }
+            };
+
+            startDateInput.addEventListener('change', () => {
+                if (!endDateInput.value) {
+                    // Otomatis sarankan tanggal selesai +4 hari (total 5 hari haid)
+                    const suggestedEnd = addDaysToDateStr(startDateInput.value, 4);
+                    endDateInput.value = suggestedEnd;
+                }
+                endDateInput.min = startDateInput.value;
+                updateDurationPreview();
+            });
+
+            endDateInput.addEventListener('change', updateDurationPreview);
+
+            // Submit form pencatatan
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                const startDate = startDateInput.value;
+                const endDate = endDateInput.value;
+                const notes = document.getElementById('notes').value.trim();
+
+                if (!startDate || !endDate) {
+                    showToast('Mohon isi tanggal mulai dan berakhir menstruasi.', 'error');
+                    return;
+                }
+
+                const duration = calculateInclusiveDays(startDate, endDate);
+                if (duration < 1) {
+                    showToast('Tanggal berakhir tidak boleh lebih awal dari tanggal mulai.', 'error');
+                    return;
+                }
+
+                if (duration > 20) {
+                    showToast('Durasi haid terdeteksi lebih dari 20 hari. Pastikan tanggal sudah benar.', 'warning');
+                }
+
+                // Kumpulkan gejala yang dicentang
+                const checkedSymptoms = Array.from(document.querySelectorAll('.symptom-checkbox:checked'))
+                    .map(cb => cb.value);
+
+                const newEntry = {
+                    id: Date.now().toString(),
+                    startDate,
+                    endDate,
+                    duration,
+                    symptoms: checkedSymptoms,
+                    notes
+                };
+
+                cyclesData.push(newEntry);
+                sortCyclesDescending();
+                saveCyclesToStorage();
+
+                // Reset form
+                form.reset();
+                document.getElementById('duration-preview').classList.add('hidden');
+
+                renderAll();
+                showToast('Catatan siklus dan gejala berhasil disimpan!', 'success');
+            });
+        }
+
+        // Setup modal hapus
+        function setupModalListeners() {
+            const modal = document.getElementById('delete-modal');
+            const cancelBtn = document.getElementById('cancel-delete-btn');
+            const confirmBtn = document.getElementById('confirm-delete-btn');
+
+            cancelBtn.addEventListener('click', () => {
+                pendingDeleteId = null;
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+
+            confirmBtn.addEventListener('click', () => {
+                if (pendingDeleteId) {
+                    cyclesData = cyclesData.filter(item => item.id !== pendingDeleteId);
+                    saveCyclesToStorage();
+                    renderAll();
+                    showToast('Riwayat siklus telah dihapus.', 'info');
+                }
+                pendingDeleteId = null;
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+        }
+
+        function requestDeleteCycle(id) {
+            pendingDeleteId = id;
+            const modal = document.getElementById('delete-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        // Render seluruh komponen UI
+        function renderAll() {
+            const analytics = calculateCycleAnalytics();
+            renderRemindersAndPrediction(analytics);
+            renderMonthlyStatsAndChart(analytics);
+            renderHistoryTable(analytics);
+        }
+
+        // Kalkulasi panjang siklus, rata-rata, dan prediksi berikutnya
+        function calculateCycleAnalytics() {
+            // Urutkan kronologis (terlama ke terbaru) untuk menghitung jarak antar siklus
+            const chronological = [...cyclesData].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+            const cycleLengths = [];
+            const cycleLengthById = {};
+
+            for (let i = 1; i < chronological.length; i++) {
+                const prevStart = new Date(chronological[i - 1].startDate);
+                const currStart = new Date(chronological[i].startDate);
+                const diffDays = Math.round((currStart - prevStart) / (1000 * 60 * 60 * 24));
+                if (diffDays > 0) {
+                    cycleLengths.push(diffDays);
+                    cycleLengthById[chronological[i].id] = diffDays;
+                }
+            }
+
+            // Rata-rata panjang siklus (Default 28 hari jika riwayat < 2)
+            const avgCycleLength = cycleLengths.length > 0
+                ? Math.round(cycleLengths.reduce((acc, val) => acc + val, 0) / cycleLengths.length)
+                : 28;
+
+            // Rata-rata durasi haid (Default 5 hari jika kosong)
+            const avgDuration = chronological.length > 0
+                ? Math.round(chronological.reduce((acc, item) => acc + item.duration, 0) / chronological.length)
+                : 5;
+
+            // Hitung frekuensi gejala
+            const symptomCounts = {};
+            chronological.forEach(item => {
+                (item.symptoms || []).forEach(sym => {
+                    symptomCounts[sym] = (symptomCounts[sym] || 0) + 1;
+                });
+            });
+
+            let topSymptom = '-';
+            let maxCount = 0;
+            for (const [sym, count] of Object.entries(symptomCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    topSymptom = sym;
+                }
+            }
+
+            // Prediksi siklus berikutnya berdasarkan catatan terbaru
+            let prediction = null;
+            if (chronological.length > 0) {
+                const latestCycle = chronological[chronological.length - 1];
+                const nextStartDateStr = addDaysToDateStr(latestCycle.startDate, avgCycleLength);
+                const reminderH1DateStr = addDaysToDateStr(nextStartDateStr, -1);
+                // Estimasi masa subur (sekitar H-14 sebelum haid berikutnya, rentang 4 hari)
+                const fertileStartStr = addDaysToDateStr(nextStartDateStr, -16);
+                const fertileEndStr = addDaysToDateStr(nextStartDateStr, -12);
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const nextStartObj = parseLocalDate(nextStartDateStr);
+                const daysUntilNext = Math.round((nextStartObj - today) / (1000 * 60 * 60 * 24));
+
+                prediction = {
+                    latestCycle,
+                    nextStartDateStr,
+                    reminderH1DateStr,
+                    fertileRange: `${formatShortDateID(fertileStartStr)} - ${formatShortDateID(fertileEndStr)}`,
+                    daysUntilNext
+                };
+            }
+
+            return {
+                chronological,
+                cycleLengthById,
+                avgCycleLength,
+                avgDuration,
+                topSymptom,
+                prediction
+            };
+        }
+
+        // Render Kartu Estimasi & Alert Pengingat H-1
+        function renderRemindersAndPrediction(analytics) {
+            const countdownEl = document.getElementById('next-period-countdown');
+            const dateEl = document.getElementById('next-period-date');
+            const h1DateEl = document.getElementById('h1-reminder-date');
+            const fertileEl = document.getElementById('fertile-window-est');
+            const h1AlertBox = document.getElementById('h1-alert-box');
+            const h1AlertText = document.getElementById('h1-alert-text');
+            const dailySymptomBadge = document.getElementById('daily-symptom-badge');
+            const symptomDesc = document.getElementById('symptom-reminder-desc');
+
+            if (!analytics.prediction) {
+                countdownEl.textContent = 'Belum Ada Data';
+                dateEl.textContent = 'Catat tanggal menstruasi terakhir Anda untuk menghitung estimasi otomatis.';
+                h1DateEl.textContent = '-';
+                fertileEl.textContent = '-';
+                h1AlertBox.classList.add('hidden');
+                return;
+            }
+
+            const { nextStartDateStr, reminderH1DateStr, fertileRange, daysUntilNext, latestCycle } = analytics.prediction;
+
+            // Tampilkan teks hitung mundur
+            if (daysUntilNext > 1) {
+                countdownEl.textContent = `${daysUntilNext} Hari Lagi`;
+                dateEl.textContent = `Diperkirakan mulai pada ${formatFullDateID(nextStartDateStr)} (Siklus ${analytics.avgCycleLength} hari)`;
+            } else if (daysUntilNext === 1) {
+                countdownEl.textContent = `Besok (H-1)`;
+                dateEl.textContent = `Jadwal menstruasi diperkirakan masuk besok, ${formatFullDateID(nextStartDateStr)}`;
+            } else if (daysUntilNext === 0) {
+                countdownEl.textContent = `Hari Ini`;
+                dateEl.textContent = `Estimasi jadwal menstruasi Anda jatuh pada hari ini, ${formatFullDateID(nextStartDateStr)}`;
+            } else {
+                const lateDays = Math.abs(daysUntilNext);
+                countdownEl.textContent = `Terlambat ${lateDays} Hari`;
+                dateEl.textContent = `Estimasi sebelumnya adalah ${formatFullDateID(nextStartDateStr)}. Catat jika haid sudah dimulai.`;
+            }
+
+            h1DateEl.textContent = formatFullDateID(reminderH1DateStr);
+            fertileEl.textContent = fertileRange;
+
+            // Tampilkan banner pengingat khusus H-1 (atau hari H / terlambat <= 3 hari)
+            if (daysUntilNext === 1) {
+                h1AlertBox.classList.remove('hidden');
+                h1AlertText.textContent = `Perhatian! Estimasi jadwal menstruasi Anda adalah BESOK (${formatFullDateID(nextStartDateStr)}). Siapkan perlengkapan haid dan catat gejala PMS hari ini.`;
+            } else if (daysUntilNext === 0) {
+                h1AlertBox.classList.remove('hidden');
+                h1AlertText.textContent = `Hari ini (${formatFullDateID(nextStartDateStr)}) adalah perkiraan hari pertama menstruasi Anda. Jangan lupa mencatat tanggal mulai & gejala harian!`;
+            } else if (daysUntilNext < 0 && daysUntilNext >= -5) {
+                h1AlertBox.classList.remove('hidden');
+                h1AlertText.textContent = `Jadwal menstruasi Anda diperkirakan sudah masuk ${Math.abs(daysUntilNext)} hari lalu (${formatFullDateID(nextStartDateStr)}). Segera perbarui catatan siklus Anda.`;
+            } else {
+                h1AlertBox.classList.add('hidden');
+            }
+
+            // Update status pengingat catat gejala
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (latestCycle.startDate === todayStr || (todayStr >= latestCycle.startDate && todayStr <= latestCycle.endDate)) {
+                dailySymptomBadge.textContent = 'Sedang Periode Haid';
+                dailySymptomBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-roseLight text-dustyPinkDark';
+                symptomDesc.textContent = 'Anda sedang dalam masa menstruasi. Pastikan mencatat intensitas kram, mood, atau nyeri kepala hari ini.';
+            } else {
+                dailySymptomBadge.textContent = 'Pengingat Harian';
+                dailySymptomBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700';
+                symptomDesc.textContent = 'Pantau perubahan tubuh menjelang haid (PMS) seperti kram ringan, suasana hati, atau mudah lelah.';
+            }
+        }
+
+        // Render Statistik & Grafik Analisis Bulanan
+        function renderMonthlyStatsAndChart(analytics) {
+            document.getElementById('stat-avg-cycle').innerHTML = `${analytics.avgCycleLength} <span class="text-xs font-normal text-slate-500">Hari</span>`;
+            document.getElementById('stat-avg-duration').innerHTML = `${analytics.avgDuration} <span class="text-xs font-normal text-slate-500">Hari</span>`;
+            document.getElementById('stat-top-symptom').textContent = analytics.topSymptom;
+
+            const statusBadge = document.getElementById('cycle-health-status');
+            const insightText = document.getElementById('monthly-insight-text');
+
+            if (analytics.avgCycleLength >= 21 && analytics.avgCycleLength <= 35) {
+                statusBadge.textContent = 'Siklus Teratur (21-35 Hari)';
+                statusBadge.className = 'self-start sm:self-auto text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+            } else {
+                statusBadge.textContent = 'Perlu Pemantauan Siklus';
+                statusBadge.className = 'self-start sm:self-auto text-xs font-semibold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200';
+            }
+
+            if (analytics.chronological.length > 0) {
+                insightText.textContent = `Berdasarkan ${analytics.chronological.length} catatan siklus, rata-rata panjang siklus Anda adalah ${analytics.avgCycleLength} hari dengan durasi haid ${analytics.avgDuration} hari. ${analytics.topSymptom !== '-' ? `Gejala yang paling sering muncul adalah "${analytics.topSymptom}".` : ''}`;
+            }
+
+            // Siapkan data grafik per pergantian bulan (maksimal 6 bulan terakhir agar rapi)
+            const recentCycles = analytics.chronological.slice(-6);
+            const emptyOverlay = document.getElementById('empty-chart-overlay');
+
+            if (recentCycles.length === 0) {
+                emptyOverlay.classList.remove('hidden');
+                if (cycleChartInstance) {
+                    cycleChartInstance.destroy();
+                    cycleChartInstance = null;
+                }
+                return;
+            }
+
+            emptyOverlay.classList.add('hidden');
+
+            const labels = recentCycles.map(item => {
+                const d = parseLocalDate(item.startDate);
+                return `${BULAN_SHORT_ID[d.getMonth()]} ${d.getFullYear()}`;
+            });
+
+            const durationData = recentCycles.map(item => item.duration);
+            const cycleLengthData = recentCycles.map(item => analytics.cycleLengthById[item.id] || analytics.avgCycleLength);
+
+            const ctx = document.getElementById('monthlyCycleChart').getContext('2d');
+            if (cycleChartInstance) {
+                cycleChartInstance.destroy();
+            }
+
+            cycleChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Durasi Haid (Hari)',
+                            data: durationData,
+                            backgroundColor: '#E57399',
+                            borderRadius: 8,
+                            barPercentage: 0.55,
+                        },
+                        {
+                            label: 'Panjang Siklus (Hari)',
+                            data: cycleLengthData,
+                            backgroundColor: '#C084FC',
+                            borderRadius: 8,
+                            barPercentage: 0.55,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 8,
+                                font: { family: 'Inter', size: 11 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#332933',
+                            padding: 10,
+                            cornerRadius: 10,
+                            titleFont: { family: 'Quicksand', size: 13 },
+                            bodyFont: { family: 'Inter', size: 12 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            suggestedMax: 35,
+                            grid: { color: '#F3E8FF' },
+                            ticks: { font: { size: 11 } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, weight: '600' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Tabel Riwayat Siklus
+        function renderHistoryTable(analytics) {
+            const tbody = document.getElementById('history-table-body');
+            const emptyState = document.getElementById('empty-history-state');
+            const countBadge = document.getElementById('history-count-badge');
+
+            countBadge.textContent = `${cyclesData.length} Catatan`;
+            tbody.innerHTML = '';
+
+            if (cyclesData.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            cyclesData.forEach(item => {
+                const startObj = parseLocalDate(item.startDate);
+                const monthYearLabel = `${BULAN_ID[startObj.getMonth()]} ${startObj.getFullYear()}`;
+                const cycleGap = analytics.cycleLengthById[item.id]
+                    ? `${analytics.cycleLengthById[item.id]} Hari`
+                    : '<span class="text-slate-400 text-xs">Siklus Awal</span>';
+
+                const symptomsHtml = (item.symptoms && item.symptoms.length > 0)
+                    ? item.symptoms.map(s => `<span class="inline-block px-2 py-0.5 rounded-md bg-roseSoft text-dustyPinkDark text-[11px] font-medium mr-1 mb-1 border border-roseLight">${escapeHtml(s)}</span>`).join('')
+                    : '<span class="text-xs text-slate-400">Tidak ada gejala dicatat</span>';
+
+                const notesHtml = item.notes
+                    ? `<p class="text-xs text-slate-500 mt-1 italic">"${escapeHtml(item.notes)}"</p>`
+                    : '';
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-roseSoft/40 transition';
+                tr.innerHTML = `
+                    <td class="py-3.5 px-3 font-display font-bold text-slate-800 whitespace-nowrap">
+                        ${monthYearLabel}
+                    </td>
+                    <td class="py-3.5 px-3 text-slate-600 whitespace-nowrap text-xs sm:text-sm">
+                        ${formatFullDateID(item.startDate)} &ndash; ${formatFullDateID(item.endDate)}
+                    </td>
+                    <td class="py-3.5 px-3 whitespace-nowrap">
+                        <span class="px-2.5 py-1 rounded-full bg-roseLight text-dustyPinkDark font-semibold text-xs">
+                            ${item.duration} Hari
+                        </span>
+                    </td>
+                    <td class="py-3.5 px-3 whitespace-nowrap font-medium text-slate-700 text-xs sm:text-sm">
+                        ${cycleGap}
+                    </td>
+                    <td class="py-3.5 px-3 max-w-xs">
+                        <div>${symptomsHtml}</div>
+                        ${notesHtml}
+                    </td>
+                    <td class="py-3.5 px-3 text-right whitespace-nowrap">
+                        <button onclick="requestDeleteCycle('${item.id}')" class="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition" title="Hapus catatan">
+                            <i class="ph ph-trash text-lg"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Muat contoh data agar pengguna bisa langsung melihat fitur H-1 & Grafik
+        function loadDemoData() {
+            const today = new Date();
+            // Buat agar siklus berikutnya jatuh BESOK (H-1) sehingga banner pengingat H-1 langsung terlihat
+            const nextPredictedStart = new Date(today);
+            nextPredictedStart.setDate(today.getDate() + 1);
+
+            const cycle4Start = new Date(nextPredictedStart);
+            cycle4Start.setDate(nextPredictedStart.getDate() - 28);
+
+            const cycle3Start = new Date(cycle4Start);
+            cycle3Start.setDate(cycle4Start.getDate() - 29);
+
+            const cycle2Start = new Date(cycle3Start);
+            cycle2Start.setDate(cycle3Start.getDate() - 27);
+
+            const cycle1Start = new Date(cycle2Start);
+            cycle1Start.setDate(cycle2Start.getDate() - 28);
+
+            const toISO = (d) => {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            cyclesData = [
+                {
+                    id: 'demo-1',
+                    startDate: toISO(cycle1Start),
+                    endDate: addDaysToDateStr(toISO(cycle1Start), 4),
+                    duration: 5,
+                    symptoms: ['Kram Perut', 'Mudah Lelah'],
+                    notes: 'Hari pertama dan kedua aliran cukup deras.'
+                },
+                {
+                    id: 'demo-2',
+                    startDate: toISO(cycle2Start),
+                    endDate: addDaysToDateStr(toISO(cycle2Start), 5),
+                    duration: 6,
+                    symptoms: ['Perubahan Mood', 'Nafsu Makan Naik'],
+                    notes: 'PMS terasa 2 hari sebelumnya.'
+                },
+                {
+                    id: 'demo-3',
+                    startDate: toISO(cycle3Start),
+                    endDate: addDaysToDateStr(toISO(cycle3Start), 4),
+                    duration: 5,
+                    symptoms: ['Kram Perut', 'Nyeri Punggung'],
+                    notes: 'Kompres hangat sangat membantu meredakan nyeri.'
+                },
+                {
+                    id: 'demo-4',
+                    startDate: toISO(cycle4Start),
+                    endDate: addDaysToDateStr(toISO(cycle4Start), 4),
+                    duration: 5,
+                    symptoms: ['Kram Perut', 'Nyeri Kepala', 'Perubahan Mood'],
+                    notes: 'Siklus teratur sesuai estimasi.'
+                }
+            ];
+
+            sortCyclesDescending();
+            saveCyclesToStorage();
+            renderAll();
+            showToast('Contoh data 4 siklus berhasil dimuat! Lihat simulasi pengingat H-1 di atas.', 'success');
+        }
+
+        // Helper Tanggal (Anti pergeseran zona waktu UTC)
+        function parseLocalDate(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+
+        function addDaysToDateStr(dateStr, daysToAdd) {
+            const d = parseLocalDate(dateStr);
+            d.setDate(d.getDate() + daysToAdd);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function calculateInclusiveDays(startStr, endStr) {
+            const s = parseLocalDate(startStr);
+            const e = parseLocalDate(endStr);
+            const diff = Math.round((e - s) / (1000 * 60 * 60 * 24));
+            return diff + 1;
+        }
+
+        function formatFullDateID(dateStr) {
+            const d = parseLocalDate(dateStr);
+            return `${d.getDate()} ${BULAN_ID[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        function formatShortDateID(dateStr) {
+            const d = parseLocalDate(dateStr);
+            return `${d.getDate()} ${BULAN_SHORT_ID[d.getMonth()]}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Sistem Notifikasi Toast
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const styles = {
+                success: 'bg-white border-l-4 border-emerald-500 text-slate-800',
+                error: 'bg-white border-l-4 border-rose-500 text-slate-800',
+                warning: 'bg-white border-l-4 border-amber-500 text-slate-800',
+                info: 'bg-white border-l-4 border-lavenderAccent text-slate-800'
+            };
+
+            const icons = {
+                success: '<i class="ph-fill ph-check-circle text-emerald-500 text-xl"></i>',
+                error: '<i class="ph-fill ph-warning-circle text-rose-500 text-xl"></i>',
+                warning: '<i class="ph-fill ph-warning text-amber-500 text-xl"></i>',
+                info: '<i class="ph-fill ph-info text-lavenderAccent text-xl"></i>'
+            };
+
+            toast.className = `${styles[type] || styles.success} pointer-events-auto rounded-2xl p-4 shadow-lg border border-slate-100 flex items-center gap-3 transform transition-all duration-300 translate-y-0 opacity-100`;
+            toast.innerHTML = `
+                ${icons[type] || icons.success}
+                <p class="text-xs sm:text-sm font-medium flex-1">${escapeHtml(message)}</p>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3800);
+        }
+    </script>
+</body>
+</html>
